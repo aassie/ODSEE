@@ -15,7 +15,7 @@ if (!require("kableExtra")) {
 }
 
 if (!require("readxl")) {
-  stop("The DescTools package is needed for report generation.")
+  stop("The readxl package is needed for report generation.")
 }
 
 cwd<-system("pwd",intern = TRUE)
@@ -49,8 +49,7 @@ map.table<-manifest[45:(44+max((Label.num*3))),2:(1+Sample.number)]
 time.column<-as.numeric(as.character(manifest[27,-1][!is.na(as.character(manifest[27,-1]))]))
 
 #Get the colors
-label.col<-as.data.frame(t(manifest[37:38,-1])[complete.cases(t(manifest[37:38,-1])),])
-rownames(label.col)<-c(1:nrow(label.col))
+label.col<-tibble(V1=t(manifest[37,-1])[complete.cases(t(manifest[37,-1])),],V2=t(manifest[38,-1])[complete.cases(t(manifest[38,-1])),])
 
 # Loading the data
 #Removing NA in metadata and change Well names
@@ -101,17 +100,54 @@ for (Exp in 1:Exp.num){
     Exp.time<-read_excel(paste("data/",Table.name[ExpS],sep=""), col_names = FALSE,range=paste(paste(LETTERS[time.column[ExpS]],time.start, sep=""),paste(LETTERS[time.column[ExpS]],time.end, sep=""),sep=":"), col_types = "numeric")
     colnames(Exp.time)<-"Time"
     Exp.time<-(Exp.time$Time*0.24)*100
-    for (att in 1:Label.num[[ExpS]]-1){
+    if(Label.num[[ExpS]]==1){
+      att=0
       j=j+1
+      print("One Label Mode")
       attribute.name<-as.character(map.table[1+(att*3),ExpS])
       print(attribute.name)
       attribute.start<-as.numeric(as.character(map.table[2+(att*3),ExpS]))-1
-      attribute.end<-as.numeric(as.character(map.table[3+(att*3),ExpS]))-1
-      attribute.table<-Read.files[[ExpS]][attribute.start:attribute.end,-(1:(table.offset[[ExpS]])-1)]
-      attribute.table<-attribute.table %>% add_column(time=as.vector(Exp.time)) %>% column_to_rownames("time")
-      attribute.table<-attribute.table %>% rename_at(names(attribute.table),funs(Meta.files[[ExpS]]$Well))
-      attribute.data[[j]]<-type_convert(attribute.table)
-      names(attribute.data)[[j]]<-attribute.name
+      if(attribute.start==1){
+        attribute.start<-as.numeric(as.character(map.table[2+(att*3),ExpS]))
+        attribute.end<-as.numeric(as.character(map.table[3+(att*3),ExpS]))
+        attribute.table<-Read.files[[ExpS]][attribute.start:attribute.end,-(1:(table.offset[[ExpS]])-1)]
+        attribute.table<-attribute.table %>% add_column(time=as.vector(Exp.time)) %>% column_to_rownames("time")
+        attribute.table<-attribute.table %>% rename_at(names(attribute.table),funs(Meta.files[[ExpS]]$Well))
+        attribute.data[[j]]<-type_convert(attribute.table)
+        names(attribute.data)[[j]]<-attribute.name        
+      }else{
+        attribute.start<-as.numeric(as.character(map.table[2+(att*3),ExpS]))-1
+        attribute.end<-as.numeric(as.character(map.table[3+(att*3),ExpS]))-1
+        attribute.table<-Read.files[[ExpS]][attribute.start:attribute.end,-(1:(table.offset[[ExpS]])-1)]
+        attribute.table<-attribute.table %>% add_column(time=as.vector(Exp.time)) %>% column_to_rownames("time")
+        attribute.table<-attribute.table %>% rename_at(names(attribute.table),funs(Meta.files[[ExpS]]$Well))
+        attribute.data[[j]]<-type_convert(attribute.table)
+        names(attribute.data)[[j]]<-attribute.name
+      }
+    }else{
+    for (att in 1:Label.num[[ExpS]]-1){
+        j=j+1
+        attribute.name<-as.character(map.table[1+(att*3),ExpS])
+        print(attribute.name)
+        attribute.start<-as.numeric(as.character(map.table[2+(att*3),ExpS]))-1
+        if(attribute.start==1){
+          attribute.start<-as.numeric(as.character(map.table[2+(att*3),ExpS]))
+          attribute.end<-as.numeric(as.character(map.table[3+(att*3),ExpS]))
+          attribute.table<-Read.files[[ExpS]][attribute.start:attribute.end,-(1:(table.offset[[ExpS]]))]
+          attribute.table<-attribute.table %>% add_column(time=as.vector(Exp.time)) %>% column_to_rownames("time")
+          attribute.table<-attribute.table %>% rename_at(names(attribute.table),funs(Meta.files[[ExpS]]$Well))
+          attribute.data[[j]]<-type_convert(attribute.table)
+          names(attribute.data)[[j]]<-attribute.name        
+        }else{
+          attribute.start<-as.numeric(as.character(map.table[2+(att*3),ExpS]))-1
+          attribute.end<-as.numeric(as.character(map.table[3+(att*3),ExpS]))-1
+          attribute.table<-Read.files[[ExpS]][attribute.start:attribute.end,-(1:(table.offset[[ExpS]])-1)]
+          attribute.table<-attribute.table %>% add_column(time=as.vector(Exp.time)) %>% column_to_rownames("time")
+          attribute.table<-attribute.table %>% rename_at(names(attribute.table),funs(Meta.files[[ExpS]]$Well))
+          attribute.data[[j]]<-type_convert(attribute.table)
+          names(attribute.data)[[j]]<-attribute.name
+        }
+      }
     }
     j=j+1
     attribute.data[[j]]<-Meta.files[[Meta.name[[ExpS]]]]
@@ -260,10 +296,15 @@ for (Exp in names(Exp.long.tables)){
       wl=0
       for (label in Rescaled.names){
         wl=wl+1
-        AUC.x<-Exp.long.tables[[Exp]][Exp.long.tables[[Exp]]$Plate==Plate&Exp.long.tables[[Exp]]$Well==Well,colnames(Exp.long.tables[[Exp]])==label]
-        AUC.y<-Exp.long.tables[[Exp]][Exp.long.tables[[Exp]]$Plate==Plate&Exp.long.tables[[Exp]]$Well==Well,colnames(Exp.long.tables[[Exp]])=="time"]
-        Well.label[[wl]]<-AUC(pull(AUC.x),pull(AUC.y), method = "linear")
-        names(Well.label)[[wl]]<-label
+          AUC.x<-Exp.long.tables[[Exp]][Exp.long.tables[[Exp]]$Plate==Plate&Exp.long.tables[[Exp]]$Well==Well,colnames(Exp.long.tables[[Exp]])==label]
+          AUC.y<-Exp.long.tables[[Exp]][Exp.long.tables[[Exp]]$Plate==Plate&Exp.long.tables[[Exp]]$Well==Well,colnames(Exp.long.tables[[Exp]])=="time"]
+        if(length(unique(AUC.x))==1){
+          Well.label[[wl]]<-0
+          names(Well.label)[[wl]]<-label
+        }else{
+          Well.label[[wl]]<-AUC(pull(AUC.x),pull(AUC.y))
+          names(Well.label)[[wl]]<-label
+        }
       }
       Well.tmp<-cbind(Well,as.data.frame(Well.label),Plate)
       AUC.Plate<-bind_rows(AUC.Plate, Well.tmp)
